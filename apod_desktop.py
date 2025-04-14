@@ -1,138 +1,152 @@
 import os
-import sqlite3
-import hashlib
-import requests
-import re
-from datetime import date
 import sys
+import re
+import hashlib
+import sqlite3
+import requests
+from datetime import datetime, date
 from PIL import Image
-import image_lib
+from io import BytesIO
+import platform
+import ctypes
 
-# NASA APOD API Key (Replace with your own key)
-API_KEY = "DEMO_KEY"
+# NASA API Key (Replace this with your actual key)
+API_KEY = 'yKp2aWaDVrsa6oONdv4Bh8ZTtQRxIfWdGG3ssjei'
 
-# Full paths of the image cache folder and database
-script_dir = os.path.dirname(os.path.abspath(__file__))
-image_cache_dir = os.path.join(script_dir, 'images')
-image_cache_db = os.path.join(image_cache_dir, 'image_cache.db')
+# Image cache path
+CACHE_DIR = os.path.join(os.path.dirname(__file__), 'apod_cache')
+DB_PATH = os.path.join(CACHE_DIR, 'apod_cache.db')
 
-def main():
-    """Main function to fetch and cache APOD image."""
-    apod_date = get_apod_date()
-    init_apod_cache()
-    apod_id = add_apod_to_cache(apod_date)
-    apod_info = get_apod_info(apod_id)
 
-    if apod_id != 0:
-        image_lib.set_desktop_background_image(apod_info['file_path'])
+def validate_date(apod_date_str):
+    try:
+        apod_date = datetime.strptime(apod_date_str, "%Y-%m-%d").date()
+        if apod_date < date(1995, 6, 16):
+            raise ValueError("Date cannot be before 1995-06-16.")
+        if apod_date > date.today():
+            raise ValueError("Date cannot be in the future.")
+        return apod_date
+    except ValueError as e:
+        print(f"Invalid date: {e}")
+        sys.exit(1)
 
-def get_apod_date():
-    """Get the APOD date from the command line or use today's date."""
-    if len(sys.argv) > 1:
-        try:
-            return date.fromisoformat(sys.argv[1])
-        except ValueError:
-            print("Invalid date format. Use YYYY-MM-DD.")
-            sys.exit(1)
-    return date.today()
 
-def init_apod_cache():
-    """Initialize the image cache directory and database."""
-    os.makedirs(image_cache_dir, exist_ok=True)
-    conn = sqlite3.connect(image_cache_db)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS apod_cache (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            explanation TEXT,
-            file_path TEXT,
-            sha256 TEXT UNIQUE
-        )
-    """)
-    conn.commit()
-    conn.close()
+def init_cache():
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+        print(f"[INFO] Created image cache directory: {CACHE_DIR}")
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS apod_cache (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT,
+                        explanation TEXT,
+                        file_path TEXT,
+                        sha256 TEXT UNIQUE
+                    )''')
+        conn.commit()
+        conn.close()
+        print(f"[INFO] Created database at: {DB_PATH}")
 
-def add_apod_to_cache(apod_date):
-    """Download and cache APOD image from NASA API."""
-    apod_data = fetch_apod_data(apod_date)
-    if not apod_data:
-        return 0
 
-    image_url = apod_data['url']
-    image_title = apod_data['title']
-    explanation = apod_data['explanation']
-
-    file_path = determine_apod_file_path(image_title, image_url)
-    image_data = download_image(image_url)
-
-    if not image_data:
-        return 0
-
-    sha256_hash = hashlib.sha256(image_data).hexdigest()
-    existing_id = get_apod_id_from_db(sha256_hash)
-    if existing_id:
-        print("APOD already in cache.")
-        return existing_id
-
-    with open(file_path, 'wb') as f:
-        f.write(image_data)
-
-    return add_apod_to_db(image_title, explanation, file_path, sha256_hash)
-
-def fetch_apod_data(apod_date):
-    """Fetch APOD metadata from NASA API."""
-    url = f"https://api.nasa.gov/planetary/apod?api_key={API_KEY}&date={apod_date}"
-    response = requests.get(url)
+def get_apod_info(apod_date):
+    print(f"[INFO] Getting APOD for {apod_date} from NASA API...")
+    url = 'https://api.nasa.gov/planetary/apod'
+    params = {
+        'api_key': API_KEY,
+        'date': apod_date.isoformat(),
+        'thumbs': True
+    }
+    response = requests.get(url, params=params)
     if response.status_code == 200:
-        data = response.json()
-        if data.get("media_type") == "image":
-            return data
-        else:
-            print("APOD is not an image.")
+        return response.json()
     else:
-        print("Failed to fetch APOD data.")
-    return None
+        print(f"[ERROR] API request failed: {response.text}")
+        sys.exit(1)
+
 
 def download_image(url):
-    """Download image from a given URL."""
-    response = requests.get(url, stream=True)
-    return response.content if response.status_code == 200 else None
+    print(f"[INFO] Downloading image from {url}")
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.content
+    else:
+        print("[ERROR] Failed to download image.")
+        return None
 
-def determine_apod_file_path(image_title, image_url):
-    """Generate a sanitized file path for saving APOD image."""
-    ext = os.path.splitext(image_url)[-1]
-    sanitized_title = re.sub(r'\W+', '_', image_title.strip())
-    return os.path.join(image_cache_dir, sanitized_title + ext)
 
-def add_apod_to_db(title, explanation, file_path, sha256):
-    """Store APOD metadata in the database."""
-    conn = sqlite3.connect(image_cache_db)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO apod_cache (title, explanation, file_path, sha256) VALUES (?, ?, ?, ?)",
-                   (title, explanation, file_path, sha256))
+def get_image_filename(title, url):
+    ext = os.path.splitext(url)[1]
+    clean_title = re.sub(r'[^A-Za-z0-9_]', '', title.replace(' ', '_').strip())
+    return f"{clean_title}{ext}"
+
+
+def save_image(image_data, title, url):
+    hash_val = hashlib.sha256(image_data).hexdigest()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM apod_cache WHERE sha256 = ?", (hash_val,))
+    if c.fetchone():
+        print("[INFO] Image already exists in cache.")
+        conn.close()
+        return None
+
+    filename = get_image_filename(title, url)
+    full_path = os.path.join(CACHE_DIR, filename)
+
+    with open(full_path, 'wb') as f:
+        f.write(image_data)
+
+    print(f"[INFO] Saved image to: {full_path}")
+
+    c.execute("INSERT INTO apod_cache (title, explanation, file_path, sha256) VALUES (?, ?, ?, ?)",
+              (title, apod_data['explanation'], full_path, hash_val))
     conn.commit()
-    apod_id = cursor.lastrowid
     conn.close()
-    return apod_id
+    print("[INFO] Added image info to database.")
 
-def get_apod_id_from_db(image_sha256):
-    """Check if APOD image exists in cache by SHA-256."""
-    conn = sqlite3.connect(image_cache_db)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM apod_cache WHERE sha256 = ?", (image_sha256,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else 0
+    return full_path
 
-def get_apod_info(image_id):
-    """Retrieve APOD metadata from the database."""
-    conn = sqlite3.connect(image_cache_db)
-    cursor = conn.cursor()
-    cursor.execute("SELECT title, explanation, file_path FROM apod_cache WHERE id = ?", (image_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return {'title': row[0], 'explanation': row[1], 'file_path': row[2]} if row else {}
+
+def set_desktop_background(image_path):
+    if platform.system() == "Windows":
+        print(f"[INFO] Setting desktop background to {image_path}")
+        ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
+
 
 if __name__ == '__main__':
-    main()
+    #  Parse date from command-line or use today
+    apod_date = date.today()
+    if len(sys.argv) > 1:
+        apod_date = validate_date(sys.argv[1])
+    else:
+        print(f"[INFO] No date provided, using today's date: {apod_date}")
+
+    # Initialize cache and DB
+    init_cache()
+
+    #  Fetch APOD info
+    apod_data = get_apod_info(apod_date)
+
+    print(f"[INFO] Title: {apod_data['title']}")
+    print(f"[INFO] Explanation: {apod_data['explanation']}")
+
+    #   Get image URL
+    if apod_data['media_type'] == 'image':
+        image_url = apod_data['hdurl'] if 'hdurl' in apod_data else apod_data['url']
+    elif apod_data['media_type'] == 'video':
+        image_url = apod_data['thumbnail_url']
+    else:
+        print("[ERROR] Unsupported media type.")
+        sys.exit(1)
+
+    print(f"[INFO] Image URL: {image_url}")
+
+    # Download and save image
+    image_data = download_image(image_url)
+    if image_data:
+        saved_path = save_image(image_data, apod_data['title'], image_url)
+        if saved_path:
+            set_desktop_background(saved_path)
