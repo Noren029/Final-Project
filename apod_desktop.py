@@ -34,7 +34,7 @@ def validate_date(apod_date_str):
 def init_cache():
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
-        print(f"[INFO] Created image cache directory: {CACHE_DIR}")
+        print(f" Created image cache directory: {CACHE_DIR}")
     if not os.path.exists(DB_PATH):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -47,11 +47,11 @@ def init_cache():
                     )''')
         conn.commit()
         conn.close()
-        print(f"[INFO] Created database at: {DB_PATH}")
+        print(f" Created database at: {DB_PATH}")
 
 
 def get_apod_info(apod_date):
-    print(f"[INFO] Getting APOD for {apod_date} from NASA API...")
+    print(f" Getting APOD for {apod_date} from NASA API...")
     url = 'https://api.nasa.gov/planetary/apod'
     params = {
         'api_key': API_KEY,
@@ -67,7 +67,7 @@ def get_apod_info(apod_date):
 
 
 def download_image(url):
-    print(f"[INFO] Downloading image from {url}")
+    print(f" Downloading image from {url}")
     response = requests.get(url)
     if response.status_code == 200:
         return response.content
@@ -89,7 +89,7 @@ def save_image(image_data, title, url):
 
     c.execute("SELECT * FROM apod_cache WHERE sha256 = ?", (hash_val,))
     if c.fetchone():
-        print("[INFO] Image already exists in cache.")
+        print(" Image already exists in cache.")
         conn.close()
         return None
 
@@ -99,20 +99,20 @@ def save_image(image_data, title, url):
     with open(full_path, 'wb') as f:
         f.write(image_data)
 
-    print(f"[INFO] Saved image to: {full_path}")
+    print(f" Saved image to: {full_path}")
 
     c.execute("INSERT INTO apod_cache (title, explanation, file_path, sha256) VALUES (?, ?, ?, ?)",
               (title, apod_data['explanation'], full_path, hash_val))
     conn.commit()
     conn.close()
-    print("[INFO] Added image info to database.")
+    print(" Added image info to database.")
 
     return full_path
 
 
 def set_desktop_background(image_path):
     if platform.system() == "Windows":
-        print(f"[INFO] Setting desktop background to {image_path}")
+        print(f" Setting desktop background to {image_path}")
         ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
 
 
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         apod_date = validate_date(sys.argv[1])
     else:
-        print(f"[INFO] No date provided, using today's date: {apod_date}")
+        print(f" No date provided, using today's date: {apod_date}")
 
     # Initialize cache and DB
     init_cache()
@@ -130,8 +130,8 @@ if __name__ == '__main__':
     #  Fetch APOD info
     apod_data = get_apod_info(apod_date)
 
-    print(f"[INFO] Title: {apod_data['title']}")
-    print(f"[INFO] Explanation: {apod_data['explanation']}")
+    print(f" Title: {apod_data['title']}")
+    print(f" Explanation: {apod_data['explanation']}")
 
     #   Get image URL
     if apod_data['media_type'] == 'image':
@@ -142,7 +142,7 @@ if __name__ == '__main__':
         print("[ERROR] Unsupported media type.")
         sys.exit(1)
 
-    print(f"[INFO] Image URL: {image_url}")
+    print(f" Image URL: {image_url}")
 
     # Download and save image
     image_data = download_image(image_url)
