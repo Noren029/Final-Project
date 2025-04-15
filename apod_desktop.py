@@ -10,7 +10,7 @@ from io import BytesIO
 import platform
 import ctypes
 
-# NASA API Key (Replace this with your actual key)
+# NASA API Key 
 API_KEY = 'yKp2aWaDVrsa6oONdv4Bh8ZTtQRxIfWdGG3ssjei'
 
 # Image cache path
