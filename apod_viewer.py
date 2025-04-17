@@ -16,7 +16,7 @@ class APODViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("Astronomy Picture of the Day Viewer")
-        self.root.geometry("900x700")
+        self.root.geometry("1000x800")
         self.root.iconbitmap(DEFAULT_IMAGE)
 
         self.create_widgets()
