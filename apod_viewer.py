@@ -128,10 +128,10 @@ class APODViewer:
     def download_apod(self):
         try:
             apod_date = self.date_entry.get_date()
-            print(f"[DEBUG] Selected date: {apod_date}")
+            print(f" Selected date: {apod_date}")
 
             apod_data = apod_desktop.get_apod_info(apod_date)
-            print(f"[DEBUG] APOD data: {apod_data}")
+            print(f" APOD data: {apod_data}")
 
             if not apod_data:
                 messagebox.showerror("Error", "No APOD data found for this date.")
@@ -142,18 +142,18 @@ class APODViewer:
                 return
 
             image_url = apod_data.get('hdurl') or apod_data.get('url') or apod_data.get('thumbnail_url')
-            print(f"[DEBUG] Image URL: {image_url}")
+            print(f" Image URL: {image_url}")
 
             if not image_url:
                 messagebox.showerror("Error", "No image URL found.")
                 return
 
             image_data = apod_desktop.download_image(image_url)
-            print(f"[DEBUG] Image data received: {bool(image_data)}")
+            print(f" Image data received: {bool(image_data)}")
 
             if image_data:
                 path = apod_desktop.save_image(image_data, apod_data['title'], image_url)
-                print(f"[DEBUG] Image saved to: {path}")
+                print(f" Image saved to: {path}")
 
                 if path:
                     self.load_cached_titles()  # Reload cached titles
