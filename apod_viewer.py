@@ -28,6 +28,10 @@ class APODViewer:
         self.image_label = tk.Label(self.root)
         self.image_label.pack(expand=True, fill="both")
 
+        # Explanation Label for the APOD
+        self.explanation_label = tk.Label(self.root, text="", wraplength=850, justify="left", anchor="w")
+        self.explanation_label.pack(pady=10, padx=10, fill="both")
+
         bottom_frame = tk.Frame(self.root)
         bottom_frame.pack(fill="x", pady=10, padx=10)
 
@@ -58,6 +62,7 @@ class APODViewer:
 
     def display_image(self, image_path):
         try:
+            print(f"[DEBUG] Trying to display image: {image_path}")  # Debug line to check image path
             if not os.path.exists(image_path):
                 messagebox.showerror("Error", f"Image file not found: {image_path}")
                 return
@@ -78,7 +83,9 @@ class APODViewer:
             c.execute("SELECT title FROM apod_cache")
             titles = [row[0] for row in c.fetchall()]
             conn.close()
-            self.image_combo['values'] = titles
+
+            print(f"[DEBUG] Loaded cached titles: {titles}")  # Debug line to ensure titles are loaded correctly
+            self.image_combo['values'] = titles  # Populate the combobox with the titles
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load cached titles: {e}")
             print(f"[ERROR] DB load titles: {e}")
@@ -90,11 +97,12 @@ class APODViewer:
         try:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
-            c.execute("SELECT file_path FROM apod_cache WHERE title = ?", (title,))
+            c.execute("SELECT file_path, explanation FROM apod_cache WHERE title = ?", (title,))
             row = c.fetchone()
             conn.close()
             if row:
                 self.display_image(row[0])
+                self.explanation_label.config(text=row[1])  # Display explanation from DB
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load image from database: {e}")
             print(f"[ERROR] Show selected image: {e}")
@@ -148,9 +156,10 @@ class APODViewer:
                 print(f"[DEBUG] Image saved to: {path}")
 
                 if path:
-                    self.load_cached_titles()
-                    self.image_combo.set(apod_data['title'])
-                    self.display_image(path)
+                    self.load_cached_titles()  # Reload cached titles
+                    self.image_combo.set(apod_data['title'])  # Set the newly downloaded image title in the combo box
+                    self.display_image(path)  # Display the newly downloaded image
+                    self.explanation_label.config(text=apod_data.get('explanation', "No explanation available."))  # Display the explanation
             else:
                 messagebox.showerror("Error", "Failed to download image data.")
         except Exception as e:
