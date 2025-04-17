@@ -17,7 +17,6 @@ API_KEY = 'yKp2aWaDVrsa6oONdv4Bh8ZTtQRxIfWdGG3ssjei'
 CACHE_DIR = os.path.join(os.path.dirname(__file__), 'apod_cache')
 DB_PATH = os.path.join(CACHE_DIR, 'apod_cache.db')
 
-
 def validate_date(apod_date_str):
     try:
         apod_date = datetime.strptime(apod_date_str, "%Y-%m-%d").date()
@@ -29,7 +28,6 @@ def validate_date(apod_date_str):
     except ValueError as e:
         print(f"Invalid date: {e}")
         sys.exit(1)
-
 
 def init_cache():
     if not os.path.exists(CACHE_DIR):
@@ -49,6 +47,9 @@ def init_cache():
         conn.close()
         print(f" Created database at: {DB_PATH}")
 
+# ✅ This is the function your GUI needs
+def init_apod_cache():
+    init_cache()
 
 def get_apod_info(apod_date):
     print(f" Getting APOD for {apod_date} from NASA API...")
@@ -65,7 +66,6 @@ def get_apod_info(apod_date):
         print(f"[ERROR] API request failed: {response.text}")
         sys.exit(1)
 
-
 def download_image(url):
     print(f" Downloading image from {url}")
     response = requests.get(url)
@@ -75,12 +75,10 @@ def download_image(url):
         print("[ERROR] Failed to download image.")
         return None
 
-
 def get_image_filename(title, url):
     ext = os.path.splitext(url)[1]
     clean_title = re.sub(r'[^A-Za-z0-9_]', '', title.replace(' ', '_').strip())
     return f"{clean_title}{ext}"
-
 
 def save_image(image_data, title, url):
     hash_val = hashlib.sha256(image_data).hexdigest()
@@ -102,38 +100,31 @@ def save_image(image_data, title, url):
     print(f" Saved image to: {full_path}")
 
     c.execute("INSERT INTO apod_cache (title, explanation, file_path, sha256) VALUES (?, ?, ?, ?)",
-              (title, apod_data['explanation'], full_path, hash_val))
+              (title, "Explanation placeholder", full_path, hash_val))  # Placeholder text
     conn.commit()
     conn.close()
     print(" Added image info to database.")
 
     return full_path
 
-
 def set_desktop_background(image_path):
     if platform.system() == "Windows":
         print(f" Setting desktop background to {image_path}")
         ctypes.windll.user32.SystemParametersInfoW(20, 0, image_path, 3)
 
-
 if __name__ == '__main__':
-    #  Parse date from command-line or use today
     apod_date = date.today()
     if len(sys.argv) > 1:
         apod_date = validate_date(sys.argv[1])
     else:
         print(f" No date provided, using today's date: {apod_date}")
 
-    # Initialize cache and DB
     init_cache()
-
-    #  Fetch APOD info
     apod_data = get_apod_info(apod_date)
 
     print(f" Title: {apod_data['title']}")
     print(f" Explanation: {apod_data['explanation']}")
 
-    #   Get image URL
     if apod_data['media_type'] == 'image':
         image_url = apod_data['hdurl'] if 'hdurl' in apod_data else apod_data['url']
     elif apod_data['media_type'] == 'video':
@@ -144,7 +135,6 @@ if __name__ == '__main__':
 
     print(f" Image URL: {image_url}")
 
-    # Download and save image
     image_data = download_image(image_url)
     if image_data:
         saved_path = save_image(image_data, apod_data['title'], image_url)

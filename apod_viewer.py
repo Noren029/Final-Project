@@ -1,118 +1,163 @@
-from tkinter import *
+import os
+import tkinter as tk
 from tkinter import ttk, messagebox
-from tkinter.filedialog import asksaveasfilename
+from tkinter import filedialog
 from tkcalendar import DateEntry
 from PIL import Image, ImageTk
-import datetime
-import os
+from datetime import date, datetime
+import sqlite3
 import apod_desktop
 
-# --- Constants ---
-DEFAULT_IMAGE_PATH = 'default.jpg'
-ICON_PATH = 'apod_icon.ico'
-MIN_DATE = datetime.date(1995, 6, 16)
-TODAY = datetime.date.today()
+CACHE_DIR = os.path.join(os.path.dirname(__file__), 'apod_cache')
+DEFAULT_IMAGE = os.path.join(os.path.dirname(__file__), 'nasa1.png')
+DB_PATH = os.path.join(CACHE_DIR, 'apod_cache.db')
 
-# --- App Setup ---
-apod_desktop.init_apod_cache()
-root = Tk()
-root.title("NASA APOD Viewer")
-root.geometry("800x600")
-root.iconbitmap(ICON_PATH)
-root.minsize(600, 400)
+class APODViewer:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Astronomy Picture of the Day Viewer")
+        self.root.geometry("900x700")
+        self.root.iconbitmap(DEFAULT_IMAGE)
 
-# --- GUI Layout ---
-main_frame = Frame(root)
-main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        self.create_widgets()
+        apod_desktop.init_cache()
+        self.load_cached_titles()
+        self.display_default_image()
 
-top_frame = Frame(main_frame)
-top_frame.pack(fill=X)
+    def create_widgets(self):
+        self.image_label = tk.Label(self.root)
+        self.image_label.pack(expand=True, fill="both")
 
-bottom_frame = Frame(main_frame)
-bottom_frame.pack(fill=BOTH, expand=True)
+        bottom_frame = tk.Frame(self.root)
+        bottom_frame.pack(fill="x", pady=10, padx=10)
 
-# --- Widgets ---
-# Date picker
-date_label = Label(top_frame, text="Select Date:")
-date_label.pack(side=LEFT)
+        # View Cached Images
+        left_frame = tk.LabelFrame(bottom_frame, text="View Cached Image")
+        left_frame.pack(side="left", padx=5)
 
-date_picker = DateEntry(top_frame, mindate=MIN_DATE, maxdate=TODAY, width=12)
-date_picker.pack(side=LEFT, padx=5)
+        self.image_combo = ttk.Combobox(left_frame, state="readonly", width=40)
+        self.image_combo.pack(side="left", padx=5)
+        self.image_combo.bind("<<ComboboxSelected>>", self.show_selected_image)
 
-def download_apod():
-    selected_date = date_picker.get_date()
-    try:
-        apod_info = apod_desktop.download_apod(selected_date.strftime("%Y-%m-%d"))
-        update_display(apod_info)
-        update_cached_list()
-    except Exception as e:
-        messagebox.showerror("Download Error", str(e))
+        self.set_btn = tk.Button(left_frame, text="Set as Desktop", command=self.set_as_desktop)
+        self.set_btn.pack(side="left", padx=5)
 
-download_btn = Button(top_frame, text="Download APOD", command=download_apod)
-download_btn.pack(side=LEFT, padx=5)
+        # Download New Image
+        right_frame = tk.LabelFrame(bottom_frame, text="Get More Images")
+        right_frame.pack(side="right", padx=5)
 
-# Cached APOD Listbox
-cache_frame = Frame(bottom_frame)
-cache_frame.pack(side=LEFT, fill=Y, padx=(0, 10))
+        tk.Label(right_frame, text="Select Date:").pack(side="left")
+        self.date_entry = DateEntry(right_frame, maxdate=date.today(), mindate=date(1995, 6, 16), width=12)
+        self.date_entry.pack(side="left", padx=5)
 
-cached_listbox = Listbox(cache_frame, width=30)
-cached_listbox.pack(side=LEFT, fill=Y)
+        self.download_btn = tk.Button(right_frame, text="Download Image", command=self.download_apod)
+        self.download_btn.pack(side="left")
 
-def update_cached_list():
-    cached_listbox.delete(0, END)
-    for apod in apod_desktop.get_all_cached_apods():
-        cached_listbox.insert(END, apod['title'])
+    def display_default_image(self):
+        self.display_image(DEFAULT_IMAGE)
 
-def on_select_apod(event):
-    selection = cached_listbox.curselection()
-    if selection:
-        title = cached_listbox.get(selection[0])
-        apod_info = apod_desktop.get_apod_by_title(title)
-        update_display(apod_info)
+    def display_image(self, image_path):
+        try:
+            if not os.path.exists(image_path):
+                messagebox.showerror("Error", f"Image file not found: {image_path}")
+                return
+            img = Image.open(image_path)
+            img.thumbnail((850, 550))
+            self.tk_img = ImageTk.PhotoImage(img)
+            self.image_label.config(image=self.tk_img)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load image: {e}")
+            print(f"[ERROR] Image load failed: {e}")
 
-cached_listbox.bind('<<ListboxSelect>>', on_select_apod)
+    def load_cached_titles(self):
+        if not os.path.exists(DB_PATH):
+            return
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT title FROM apod_cache")
+            titles = [row[0] for row in c.fetchall()]
+            conn.close()
+            self.image_combo['values'] = titles
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load cached titles: {e}")
+            print(f"[ERROR] DB load titles: {e}")
 
-# Image & Explanation Display
-display_frame = Frame(bottom_frame)
-display_frame.pack(side=LEFT, fill=BOTH, expand=True)
+    def show_selected_image(self, event):
+        title = self.image_combo.get()
+        if not title:
+            return
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT file_path FROM apod_cache WHERE title = ?", (title,))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                self.display_image(row[0])
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load image from database: {e}")
+            print(f"[ERROR] Show selected image: {e}")
 
-image_label = Label(display_frame)
-image_label.pack(pady=5)
+    def set_as_desktop(self):
+        title = self.image_combo.get()
+        if not title:
+            messagebox.showwarning("Warning", "Please select an image first.")
+            return
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT file_path FROM apod_cache WHERE title = ?", (title,))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                apod_desktop.set_desktop_background(row[0])
+                messagebox.showinfo("Success", "Desktop background updated!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to set desktop background: {e}")
+            print(f"[ERROR] Set desktop background: {e}")
 
-explanation_text = Text(display_frame, wrap=WORD, height=10)
-explanation_text.pack(fill=BOTH, expand=True)
+    def download_apod(self):
+        try:
+            apod_date = self.date_entry.get_date()
+            print(f"[DEBUG] Selected date: {apod_date}")
 
-def update_display(apod_info):
-    img_path = apod_info['file_path']
-    img = Image.open(img_path)
-    img = img.resize((400, 300), Image.LANCZOS)
-    tk_img = ImageTk.PhotoImage(img)
-    image_label.config(image=tk_img)
-    image_label.image = tk_img  # Prevent garbage collection
+            apod_data = apod_desktop.get_apod_info(apod_date)
+            print(f"[DEBUG] APOD data: {apod_data}")
 
-    explanation_text.delete(1.0, END)
-    explanation_text.insert(END, apod_info['explanation'])
+            if not apod_data:
+                messagebox.showerror("Error", "No APOD data found for this date.")
+                return
 
-def set_as_wallpaper():
-    if hasattr(image_label, 'image'):
-        apod_info = apod_desktop.get_apod_by_title(cached_listbox.get(ACTIVE))
-        apod_desktop.set_desktop_background(apod_info['file_path'])
-        messagebox.showinfo("Success", "Wallpaper set!")
-    else:
-        messagebox.showwarning("No Image", "No APOD selected to set as wallpaper.")
+            if apod_data.get('media_type') not in ['image', 'video']:
+                messagebox.showerror("Error", "Unsupported media type.")
+                return
 
-wallpaper_btn = Button(top_frame, text="Set as Wallpaper", command=set_as_wallpaper)
-wallpaper_btn.pack(side=LEFT, padx=5)
+            image_url = apod_data.get('hdurl') or apod_data.get('url') or apod_data.get('thumbnail_url')
+            print(f"[DEBUG] Image URL: {image_url}")
 
-# --- Default Image ---
-if os.path.exists(DEFAULT_IMAGE_PATH):
-    default_info = {
-        'file_path': DEFAULT_IMAGE_PATH,
-        'explanation': "Please select a date or cached APOD to begin."
-    }
-    update_display(default_info)
+            if not image_url:
+                messagebox.showerror("Error", "No image URL found.")
+                return
 
-update_cached_list()
+            image_data = apod_desktop.download_image(image_url)
+            print(f"[DEBUG] Image data received: {bool(image_data)}")
 
-# --- Mainloop ---
-root.mainloop()
+            if image_data:
+                path = apod_desktop.save_image(image_data, apod_data['title'], image_url)
+                print(f"[DEBUG] Image saved to: {path}")
+
+                if path:
+                    self.load_cached_titles()
+                    self.image_combo.set(apod_data['title'])
+                    self.display_image(path)
+            else:
+                messagebox.showerror("Error", "Failed to download image data.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to download or save APOD: {e}")
+            print(f"[ERROR] Exception in download_apod: {e}")
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    app = APODViewer(root)
+    root.mainloop()
