@@ -9,7 +9,7 @@ import sqlite3
 import apod_desktop
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), 'apod_cache')
-DEFAULT_IMAGE = os.path.join(os.path.dirname(__file__), 'nasa1.png')
+DEFAULT_IMAGE = os.path.join(os.path.dirname(__file__), 'nasa.png')
 DB_PATH = os.path.join(CACHE_DIR, 'apod_cache.db')
 
 class APODViewer:
@@ -39,7 +39,8 @@ class APODViewer:
         left_frame = tk.LabelFrame(bottom_frame, text="View Cached Image")
         left_frame.pack(side="left", padx=5)
 
-        self.image_combo = ttk.Combobox(left_frame, state="readonly", width=40)
+        tk.Label(left_frame, text="Select Image:").pack(side="left")
+        self.image_combo = ttk.Combobox(left_frame, state="readonly", width=30)
         self.image_combo.pack(side="left", padx=5)
         self.image_combo.bind("<<ComboboxSelected>>", self.show_selected_image)
 
