@@ -51,7 +51,7 @@ class APODViewer:
         right_frame.pack(side="right", padx=5)
 
         tk.Label(right_frame, text="Select Date:").pack(side="left")
-        self.date_entry = DateEntry(right_frame, maxdate=date.today(), mindate=date(1995, 6, 16), width=12)
+        self.date_entry = DateEntry(right_frame, maxdate=date.today(), mindate=date(1995, 6, 16), width=12, date_pattern='yyyy-mm-dd')
         self.date_entry.pack(side="left", padx=5)
 
         self.download_btn = tk.Button(right_frame, text="Download Image", command=self.download_apod)
