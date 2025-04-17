@@ -62,7 +62,7 @@ class APODViewer:
 
     def display_image(self, image_path):
         try:
-            print(f"[DEBUG] Trying to display image: {image_path}")  # Debug line to check image path
+            print(f" Trying to display image: {image_path}")  # Debug line to check image path
             if not os.path.exists(image_path):
                 messagebox.showerror("Error", f"Image file not found: {image_path}")
                 return
@@ -84,7 +84,7 @@ class APODViewer:
             titles = [row[0] for row in c.fetchall()]
             conn.close()
 
-            print(f"[DEBUG] Loaded cached titles: {titles}")  # Debug line to ensure titles are loaded correctly
+            print(f" Loaded cached titles: {titles}")  # Debug line to ensure titles are loaded correctly
             self.image_combo['values'] = titles  # Populate the combobox with the titles
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load cached titles: {e}")
