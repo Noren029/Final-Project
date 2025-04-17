@@ -9,14 +9,14 @@ import sqlite3
 import apod_desktop
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), 'apod_cache')
-DEFAULT_IMAGE = os.path.join(os.path.dirname(__file__), 'nasa.png')
+DEFAULT_IMAGE = os.path.join(os.path.dirname(__file__), 'nasa1.png')
 DB_PATH = os.path.join(CACHE_DIR, 'apod_cache.db')
 
 class APODViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("Astronomy Picture of the Day Viewer")
-        self.root.geometry("1000x800")
+        self.root.geometry("800x600")
         self.root.iconbitmap(DEFAULT_IMAGE)
 
         self.create_widgets()
@@ -68,7 +68,7 @@ class APODViewer:
                 messagebox.showerror("Error", f"Image file not found: {image_path}")
                 return
             img = Image.open(image_path)
-            img.thumbnail((850, 550))
+            img.thumbnail((600, 400))
             self.tk_img = ImageTk.PhotoImage(img)
             self.image_label.config(image=self.tk_img)
         except Exception as e:
