@@ -17,7 +17,7 @@ class APODViewer:
         self.root = root
         self.root.title("Astronomy Picture of the Day Viewer")
         self.root.geometry("800x600")
-        self.root.iconbitmap(DEFAULT_IMAGE)
+        self.root.iconbitmap('nasa.ico')
 
         self.create_widgets()
         apod_desktop.init_cache()
